@@ -1,0 +1,30 @@
+{
+	"console":
+	{
+		"protocols":
+		{
+			"http":
+			{
+				"port": @@HTTPPort@@
+			}
+			,"https":
+			{
+				"port": @@HTTPSPort@@
+				,"private_key": "@@PrivateKeyFile@@"
+				,"certificate": "@@CertificateFile@@"
+				,"ca_files": ["@@CAFile1@@","@@CAFile2@@"]
+			}
+		}
+		,"basic-auth":
+		{
+			"user_1": "password_1"
+			,"user_2": "password_2"
+		}
+	}
+	,"service":
+	{
+		"name": "Notepad Service"
+		,"homeRoute": "/notepad_srv"
+		,"cmd": "notepad.exe"
+	}
+}

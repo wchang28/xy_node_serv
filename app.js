@@ -1,22 +1,65 @@
 var http = require('http');
 var https = require('https');
+var basicAuth = require('basic-auth-connect');
+var fs = require('fs');
 var express = require('express');
 var app = express();
 var bodyParser = require('body-parser');
 var kill = require('tree-kill');
 
+var DEFAULT_SERVICE_NAME = "XY Node.js Service";
+
+if (process.argv.length < 3) {
+	console.error('config file is not optional');
+	process.exit(1);
+}
+var config = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+//console.log(JSON.stringify(config));
+var consoleConfig = config["console"];
+if (!consoleConfig) {
+	console.error('missing "console" config');
+	process.exit(1);
+}
+var protocolsConfig = consoleConfig["protocols"];
+if (!protocolsConfig) {
+	console.error('missing "protocols" config');
+	process.exit(1);
+}
+
+var serviceConfig = config["service"];
+if (!serviceConfig) {
+	console.error('missing "service" config');
+	process.exit(1);
+}
+
+if (!serviceConfig["cmd"] || serviceConfig["cmd"].length == 0) {
+	console.error('invalid service command');
+	process.exit(1);
+}
+
+if (!serviceConfig["homeRoute"] || serviceConfig["homeRoute"].length == 0) {
+	console.error('invalid service home route');
+	process.exit(1);
+}
+
 app.use(bodyParser.json());
 
+var basicAuthConfig = consoleConfig["basic-auth"];
+if (basicAuthConfig) {
+	app.use(basicAuth(function(user, pass){
+		if (!user || user.length == 0|| !pass || pass.length == 0) return false;
+		if (basicAuthConfig[user] && pass === basicAuthConfig[user])
+			return true;
+		else
+			return false;
+	}));
+}
+	
 app.use(function timeLog(req, res, next) {
 	console.log('an incomming request @ ./. Time: ', Date.now());
 	res.header("Access-Control-Allow-Origin", "*");
 	next();
 });
-
-var secure_http = false;
-var console_port = 5573;
-var cmd = 'notepad.exe';
-var sslCredentials = {};
 
 var childPid = null;
 var relaunch = true;
@@ -68,18 +111,19 @@ function restartChildProcess(cmd, onDone) {
 	}
 }
 
-runChildProcess(cmd);
-
+// set up the service home route
+//////////////////////////////////////////////////////////////////////////////////////
 var router = express.Router();
 router.use(function timeLog(req, res, next) {
-	console.log('an incomming request @ /xy_node_serv. Time: ', Date.now()); 
+	console.log('an incomming request @ ' + serviceConfig["homeRoute"] + '. Time: ', Date.now()); 
  	next(); 
 }); 
 router.get('/hello', function(request, result) {
-	result.json({"message": "Hi from XY Node.js Service", "pid": childPid});
+	var serviceName = (serviceConfig.name ? serviceConfig.name : DEFAULT_SERVICE_NAME);
+	result.json({"name": serviceName, "pid": childPid});
 });
-router.get('/restart_child', function(request, result) {
-	restartChildProcess(cmd, function(pid) {
+router.get('/restart', function(request, result) {
+	restartChildProcess(serviceConfig["cmd"], function(pid) {
 		result.json({"pid": pid});
 	});
 });
@@ -88,11 +132,66 @@ router.all('/', function(request, result) {
 	result.json({"exception":"bad request"});
 });
 
-app.use('/xy_node_serv', router);
+app.use(serviceConfig["homeRoute"], router);
+//////////////////////////////////////////////////////////////////////////////////////
 
-var serverConsole = (secure_http ? https.createServer(sslCredentials, app) : http.createServer(app));
-serverConsole.listen(console_port, function() {
-	var host = serverConsole.address().address;
-	var port = serverConsole.address().port;
-	console.log('console listening at %s://%s:%s', (secure_http ? 'https' : 'http'), host, port);
-});
+// HTTP
+//////////////////////////////////////////////////////////////////////////////////////
+var httpServer = null;
+if (protocolsConfig["http"]) {
+	var httpConfig = protocolsConfig["http"];
+	if (!httpConfig.port) {
+		console.error('no http port specified');
+		process.exit(1);
+	}
+	var httpServer = http.createServer(app);
+	httpServer.listen(httpConfig.port, function() {
+		var host = httpServer.address().address;
+		var port = httpServer.address().port;
+		console.log('console listening at %s://%s:%s', 'http', host, port);
+	});
+}
+//////////////////////////////////////////////////////////////////////////////////////
+
+// HTTPS
+//////////////////////////////////////////////////////////////////////////////////////
+var httpsServer = null;
+if (protocolsConfig["https"]) {
+	var httpsConfig = protocolsConfig["https"];
+	if (!httpsConfig.port) {
+		console.error('no https port specified');
+		process.exit(1);
+	}
+	if (!httpsConfig.private_key) {
+		console.error('no private key file specified');
+		process.exit(1);
+	}
+	if (!httpsConfig.certificate) {
+		console.error('no certificate file specified');
+		process.exit(1);
+	}	
+	var options = {
+		key: fs.readFileSync(httpsConfig.private_key, 'utf8'),
+		cert: fs.readFileSync(httpsConfig.certificate, 'utf8')	
+	};
+	if (httpsConfig.ca_files && httpsConfig.ca_files.length > 0) {
+		var ca = [];
+		for (var i in httpsConfig.ca_files)
+			ca.push(fs.readFileSync(httpsConfig.ca_files[i], 'utf8'));
+		options.ca = ca;
+	}
+	var httpsServer = https.createServer(options, app);
+	httpsServer.listen(httpsConfig.port, function() {
+		var host = httpsServer.address().address;
+		var port = httpsServer.address().port;
+		console.log('console listening at %s://%s:%s', 'https', host, port);
+	})
+}
+//////////////////////////////////////////////////////////////////////////////////////
+
+if (!httpServer && !httpsServer) {
+	console.error('no web service to run');
+	process.exit(1);
+}
+
+runChildProcess(serviceConfig["cmd"]);
