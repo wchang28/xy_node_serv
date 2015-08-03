@@ -1,2 +1,0 @@
-http://127.0.0.1:5573/xy_node_serv/hello
-http://127.0.0.1:5573/xy_node_serv/restart_child
