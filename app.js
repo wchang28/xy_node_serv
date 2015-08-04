@@ -62,11 +62,9 @@ app.use(function timeLog(req, res, next) {
 });
 
 var childPid = null;
-var relaunch = true;
 
 process.on('SIGINT', function() {
     console.log("Caught interrupt signal");
-	relaunch = false;
 	if (childPid) {
 		console.log('killing child process ' + childPid);
 		kill(childPid, 'SIGKILL', function(err) {
@@ -87,13 +85,22 @@ function runChildProcess(cmd) {
 	child.on('exit', function(code) {
 		console.log('child process exits with code=' + code);
 		childPid = null;
-		if (relaunch) {
-			console.log('re-launching child process...');
-			runChildProcess(cmd);
-		}
 	});
 	childPid = child.pid;
 	console.log('new child process pid=' + childPid);
+}
+
+function killChildProcess(onDone) {
+	if (childPid) {
+		console.log('killing child process ' + childPid);
+		kill(childPid, 'SIGKILL', function(err) {
+			console.log('old child process fully killed');
+			if (typeof onDone === 'function') onDone();
+		});
+	}
+	else {
+		if (typeof onDone === 'function') onDone();
+	}
 }
 
 function restartChildProcess(cmd, onDone) {
@@ -102,6 +109,7 @@ function restartChildProcess(cmd, onDone) {
 		console.log('killing child process ' + childPid);
 		kill(childPid, 'SIGKILL', function(err) {
 			console.log('old child process fully killed');
+			runChildProcess(cmd);
 			if (typeof onDone === 'function') onDone(childPid);
 		});
 	}
@@ -111,6 +119,9 @@ function restartChildProcess(cmd, onDone) {
 	}
 }
 
+function getState(pid) {
+	return (pid ? "STARTED" : "STOPPED");
+}
 // set up the service home route
 //////////////////////////////////////////////////////////////////////////////////////
 var router = express.Router();
@@ -120,11 +131,20 @@ router.use(function timeLog(req, res, next) {
 }); 
 router.get('/hello', function(request, result) {
 	var serviceName = (serviceConfig.name ? serviceConfig.name : DEFAULT_SERVICE_NAME);
-	result.json({"name": serviceName, "pid": childPid});
+	result.json({"name": serviceName, "pid": childPid, "state": getState(childPid)});
+});
+router.get('/start', function(request, result) {
+	if (!childPid) runChildProcess(serviceConfig["cmd"]);
+	result.json({"pid": childPid, "state": getState(childPid)});
+});
+router.get('/stop', function(request, result) {
+	killChildProcess(function() {
+		result.json({"pid": childPid, "state": getState(childPid)});
+	});
 });
 router.get('/restart', function(request, result) {
 	restartChildProcess(serviceConfig["cmd"], function(pid) {
-		result.json({"pid": pid});
+		result.json({"pid": pid, "state": getState(pid)});
 	});
 });
 router.all('/', function(request, result) {
