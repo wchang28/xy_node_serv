@@ -214,4 +214,5 @@ if (!httpServer && !httpsServer) {
 	process.exit(1);
 }
 
-runChildProcess(serviceConfig["cmd"]);
+var runAtStart = (typeof serviceConfig.runAtStart === 'boolean' ? serviceConfig.runAtStart : true);
+if (runAtStart) runChildProcess(serviceConfig["cmd"]);

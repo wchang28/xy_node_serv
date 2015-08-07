@@ -26,5 +26,6 @@
 		"name": "Notepad Service"
 		,"homeRoute": "/notepad_srv"
 		,"cmd": "notepad.exe"
+		,"runAtStart": true/false
 	}
 }
