@@ -76,6 +76,7 @@ function getStatusObject(onDone) {
 
 // TODO:
 function sendNotification(statusObj, onDone) {
+	console.log("sending: " + JSON.stringify(statusObj) + "...");
 	if (typeof onDone === 'function') onDone(null);
 }
 
