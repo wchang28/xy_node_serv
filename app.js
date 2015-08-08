@@ -42,6 +42,10 @@ if (!serviceConfig["homeRoute"] || serviceConfig["homeRoute"].length == 0) {
 	process.exit(1);
 }
 
+var serviceName = (serviceConfig.name ? serviceConfig.name : DEFAULT_SERVICE_NAME);
+var runAtStart = (typeof serviceConfig.runAtStart === 'boolean' ? serviceConfig.runAtStart : true);
+var restartWhenTerminatedAbortnormally = (typeof serviceConfig.restartWhenTerminatedAbortnormally === 'boolean'? erviceConfig.restartWhenTerminatedAbortnormally : true);
+
 app.use(bodyParser.json());
 
 var basicAuthConfig = consoleConfig["basic-auth"];
@@ -61,8 +65,26 @@ app.use(function timeLog(req, res, next) {
 	next();
 });
 
-var childPid = null;
+var childPid = null;	// child process's process id
 
+function getStatusObject(onDone) {
+	var state = (childPid ? "STARTED" : "STOPPED");
+	var now = new Date();
+	var ret = {"name": serviceName, "pid": childPid, "state": state, "time": now.toString()};
+	onDone(ret);
+}
+
+// TODO:
+function sendNotification(statusObj, onDone) {
+	if (typeof onDone === 'function') onDone(null);
+}
+
+function onSendNotificationDone(err) {
+	if (err) console.error('!!! error sending notification: ' + err.toString());
+	else console.log('notification sent successfully');	
+}
+
+// Ctrl+C interrupt
 process.on('SIGINT', function() {
     console.log("Caught interrupt signal");
 	if (childPid) {
@@ -83,11 +105,20 @@ function runChildProcess(cmd) {
 	child.stdout.pipe(process.stdout);
 	child.stderr.pipe(process.stderr);
 	child.on('exit', function(code) {
-		console.log('child process exits with code=' + code);
+		var now = new Date();
+		console.log('child process exits with code=' + code + ", time=" + now.toString());
 		childPid = null;
+		var abnormalTermination = (code == null);
+		if (abnormalTermination) console.error('!!! child process terminated abnormally :-( @ ' + now.toString());
+		getStatusObject(function(statusObj) {
+			statusObj.exitStatus = {"code": code, "abnormalTermination": abnormalTermination};
+			sendNotification(statusObj, onSendNotificationDone);
+			if (abnormalTermination && restartWhenTerminatedAbortnormally) runChildProcess(cmd);
+		}
 	});
 	childPid = child.pid;
-	console.log('new child process pid=' + childPid);
+	console.log('new child process pid=' + childPid + ", time=" + new Date().toString());
+	getStatusObject(function(statusObj) {sendNotification(statusObj, onSendNotificationDone);});
 }
 
 function killChildProcess(onDone) {
@@ -119,9 +150,6 @@ function restartChildProcess(cmd, onDone) {
 	}
 }
 
-function getState(pid) {
-	return (pid ? "STARTED" : "STOPPED");
-}
 // set up the service home route
 //////////////////////////////////////////////////////////////////////////////////////
 var router = express.Router();
@@ -130,21 +158,20 @@ router.use(function timeLog(req, res, next) {
  	next(); 
 }); 
 router.get('/hello', function(request, result) {
-	var serviceName = (serviceConfig.name ? serviceConfig.name : DEFAULT_SERVICE_NAME);
-	result.json({"name": serviceName, "pid": childPid, "state": getState(childPid)});
+	getStatusObject(function(statusObj) {result.json(statusObj);});
 });
 router.get('/start', function(request, result) {
 	if (!childPid) runChildProcess(serviceConfig["cmd"]);
-	result.json({"pid": childPid, "state": getState(childPid)});
+	getStatusObject(function(statusObj) {result.json(statusObj);});
 });
 router.get('/stop', function(request, result) {
 	killChildProcess(function() {
-		result.json({"pid": childPid, "state": getState(childPid)});
+		getStatusObject(function(statusObj) {result.json(statusObj);});
 	});
 });
 router.get('/restart', function(request, result) {
 	restartChildProcess(serviceConfig["cmd"], function(pid) {
-		result.json({"pid": pid, "state": getState(pid)});
+		getStatusObject(function(statusObj) {result.json(statusObj);});
 	});
 });
 router.all('/', function(request, result) {
@@ -214,5 +241,7 @@ if (!httpServer && !httpsServer) {
 	process.exit(1);
 }
 
-var runAtStart = (typeof serviceConfig.runAtStart === 'boolean' ? serviceConfig.runAtStart : true);
-if (runAtStart) runChildProcess(serviceConfig["cmd"]);
+if (runAtStart)
+	runChildProcess(serviceConfig["cmd"]);
+else
+	getStatusObject(function(statusObj) {sendNotification(statusObj, onSendNotificationDone);});
