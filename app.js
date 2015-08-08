@@ -114,7 +114,7 @@ function runChildProcess(cmd) {
 			statusObj.exitStatus = {"code": code, "abnormalTermination": abnormalTermination};
 			sendNotification(statusObj, onSendNotificationDone);
 			if (abnormalTermination && restartWhenTerminatedAbortnormally) runChildProcess(cmd);
-		}
+		});
 	});
 	childPid = child.pid;
 	console.log('new child process pid=' + childPid + ", time=" + new Date().toString());
