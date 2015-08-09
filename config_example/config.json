@@ -29,6 +29,7 @@
 				,"port": @@MyPort@@
 				,"path": "@MyPath@"
 				,"method": "POST"
+				,"auth": "user:password"
 				,"rejectUnauthorized": true/false
 				,"headers":
 				{
