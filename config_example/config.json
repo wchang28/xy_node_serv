@@ -20,6 +20,22 @@
 			"user_1": "password_1"
 			,"user_2": "password_2"
 		}
+		,"rest_notification":
+		{
+			"protocol": "http/https"
+			,"options":
+			{
+				"hostname": "@@MyHostName@@"
+				,port: @@MyPort@@
+				,"path": "@MyPath@"
+				,"method": "POST"
+				,"rejectUnauthorized": true/false
+				,"headers":
+				{
+					"Content-Type": "application/json"
+				}
+			}
+		}
 	}
 	,"service":
 	{

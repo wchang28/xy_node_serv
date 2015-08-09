@@ -26,6 +26,20 @@ if (!protocolsConfig) {
 	process.exit(1);
 }
 
+var notificationConfig = consoleConfig["rest_notification"];
+notificationConfig = (notificationConfig ? notificationConfig : null);
+var sendNotificationMsg = (notificationConfig != null);
+if (sendNotificationMsg) {
+	if (!notificationConfig["protocol"]) {
+		console.error('missing "protocol" in notification config');
+		process.exit(1);
+	}
+	if (!notificationConfig["options"]) {
+		console.error('missing "options" in notification config');
+		process.exit(1);
+	}
+}
+	
 var serviceConfig = config["service"];
 if (!serviceConfig) {
 	console.error('missing "service" config');
@@ -74,15 +88,43 @@ function getStatusObject(onDone) {
 	onDone(ret);
 }
 
-// TODO:
 function sendNotification(statusObj, onDone) {
-	console.log("sending: " + JSON.stringify(statusObj) + "...");
-	if (typeof onDone === 'function') onDone(null);
+	var protocol = notificationConfig["protocol"];
+	var options = notificationConfig["options"];
+	var httpModule = require(protocol);
+	var req = httpModule.request(options, function(res) {
+		//console.log("statusCode: ", res.statusCode);
+		//console.log("headers: ", res.headers);
+		res.setEncoding('utf8');
+		var s = "";
+		res.on('data', function(d) {
+			process.stdout.write(d);
+			s += d;
+		});
+		res.on('end', function() {
+			if (res.statusCode != 200) {
+				if (typeof onDone === 'function') onDone("http returns status code of " + res.statusCode, null);
+			}
+			else {
+				try {
+					var o = JSON.parse(s);
+					if (o.exception) throw o.exception;
+					if (typeof onDone === 'function') onDone(e, o.receipt_id);
+				} catch(e) {
+					if (typeof onDone === 'function') onDone(e, null);
+				}
+			}
+		});
+	});
+	req.on('error', function(e) {
+		if (typeof onDone === 'function') onDone(e, null);
+	});
+	req.end(JSON.stringify(statusObj));
 }
 
-function onSendNotificationDone(err) {
+function onSendNotificationDone(err, receipt_id) {
 	if (err) console.error('!!! error sending notification: ' + err.toString());
-	else console.log('notification sent successfully');	
+	else console.log('notification sent successfully, receipt_id=' + receipt_id);	
 }
 
 // Ctrl+C interrupt
@@ -111,15 +153,19 @@ function runChildProcess(cmd) {
 		childPid = null;
 		var abnormalTermination = (code == null);
 		if (abnormalTermination) console.error('!!! child process terminated abnormally :-( @ ' + now.toString());
-		getStatusObject(function(statusObj) {
-			statusObj.exitStatus = {"code": code, "abnormalTermination": abnormalTermination};
-			sendNotification(statusObj, onSendNotificationDone);
+		if (sendNotificationMsg) {
+			getStatusObject(function(statusObj) {
+				statusObj.exitStatus = {"code": code, "abnormalTermination": abnormalTermination};
+				sendNotification(statusObj, onSendNotificationDone);
+				if (abnormalTermination && restartWhenTerminatedAbortnormally) runChildProcess(cmd);
+			});
+		} else {
 			if (abnormalTermination && restartWhenTerminatedAbortnormally) runChildProcess(cmd);
-		});
+		}
 	});
 	childPid = child.pid;
 	console.log('new child process pid=' + childPid + ", time=" + new Date().toString());
-	getStatusObject(function(statusObj) {sendNotification(statusObj, onSendNotificationDone);});
+	if (sendNotificationMsg) getStatusObject(function(statusObj) {sendNotification(statusObj, onSendNotificationDone);});
 }
 
 function killChildProcess(onDone) {
@@ -244,5 +290,6 @@ if (!httpServer && !httpsServer) {
 
 if (runAtStart)
 	runChildProcess(serviceConfig["cmd"]);
-else
-	getStatusObject(function(statusObj) {sendNotification(statusObj, onSendNotificationDone);});
+else {
+	if (sendNotificationMsg) getStatusObject(function(statusObj) {sendNotification(statusObj, onSendNotificationDone);});
+}
