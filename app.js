@@ -102,17 +102,13 @@ function sendNotification(statusObj, onDone) {
 			s += d;
 		});
 		res.on('end', function() {
-			if (res.statusCode != 200) {
-				if (typeof onDone === 'function') onDone("http returns status code of " + res.statusCode, null);
-			}
-			else {
-				try {
-					var o = JSON.parse(s);
-					if (o.exception) throw o.exception;
-					if (typeof onDone === 'function') onDone(e, o.receipt_id);
-				} catch(e) {
-					if (typeof onDone === 'function') onDone(e, null);
-				}
+			try {
+				if (res.statusCode != 200) throw "http returns status code of " + res.statusCode;
+				var o = JSON.parse(s);
+				if (o.exception) throw o.exception;
+				if (typeof onDone === 'function') onDone(e, o.receipt_id);
+			} catch(e) {
+				if (typeof onDone === 'function') onDone(e, null);
 			}
 		});
 	});
