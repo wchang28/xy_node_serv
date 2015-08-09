@@ -115,7 +115,8 @@ function sendNotification(statusObj, onDone) {
 	req.on('error', function(e) {
 		if (typeof onDone === 'function') onDone(e, null);
 	});
-	req.end(JSON.stringify(statusObj));
+	var o = {"headers": {}, "message": JSON.stringify(statusObj)};
+	req.end(JSON.stringify(o));
 }
 
 function onSendNotificationDone(err, receipt_id) {
