@@ -106,7 +106,7 @@ function sendNotification(statusObj, onDone) {
 				if (res.statusCode != 200) throw "http returns status code of " + res.statusCode;
 				var o = JSON.parse(s);
 				if (o.exception) throw o.exception;
-				if (typeof onDone === 'function') onDone(e, o.receipt_id);
+				if (typeof onDone === 'function') onDone(null, o.receipt_id);
 			} catch(e) {
 				if (typeof onDone === 'function') onDone(e, null);
 			}
