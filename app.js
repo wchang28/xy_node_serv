@@ -98,7 +98,7 @@ function sendNotification(statusObj, onDone) {
 		res.setEncoding('utf8');
 		var s = "";
 		res.on('data', function(d) {
-			process.stdout.write(d);
+			//process.stdout.write(d);
 			s += d;
 		});
 		res.on('end', function() {
