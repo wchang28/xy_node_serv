@@ -58,7 +58,7 @@ if (!serviceConfig["homeRoute"] || serviceConfig["homeRoute"].length == 0) {
 
 var serviceName = (serviceConfig.name ? serviceConfig.name : DEFAULT_SERVICE_NAME);
 var runAtStart = (typeof serviceConfig.runAtStart === 'boolean' ? serviceConfig.runAtStart : true);
-var restartWhenTerminatedAbortnormally = (typeof serviceConfig.restartWhenTerminatedAbortnormally === 'boolean'? erviceConfig.restartWhenTerminatedAbortnormally : true);
+var restartWhenTerminatedAbortnormally = (typeof serviceConfig.restartWhenTerminatedAbortnormally === 'boolean'? serviceConfig.restartWhenTerminatedAbortnormally : true);
 
 app.use(bodyParser.json());
 
