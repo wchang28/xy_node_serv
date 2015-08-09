@@ -26,7 +26,7 @@
 			,"options":
 			{
 				"hostname": "@@MyHostName@@"
-				,port: @@MyPort@@
+				,"port": @@MyPort@@
 				,"path": "@MyPath@"
 				,"method": "POST"
 				,"rejectUnauthorized": true/false
