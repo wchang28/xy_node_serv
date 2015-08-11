@@ -6,6 +6,7 @@ var express = require('express');
 var app = express();
 var bodyParser = require('body-parser');
 var kill = require('tree-kill');
+var os = require('os');
 
 var DEFAULT_SERVICE_NAME = "XY Node.js Service";
 
@@ -83,8 +84,14 @@ var childPid = null;	// child process's process id
 
 function getStatusObject(onDone) {
 	var state = (childPid ? "STARTED" : "STOPPED");
-	var now = new Date();
-	var ret = {"name": serviceName, "pid": childPid, "state": state, "time": now.toString()};
+	var ret = 
+	{
+		"name": serviceName
+		,"hostname": os.hostname()
+		,"pid": childPid
+		,"state": state
+		,"time": new Date().toString()
+	};
 	onDone(ret);
 }
 
