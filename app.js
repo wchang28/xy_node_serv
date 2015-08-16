@@ -7,6 +7,7 @@ var app = express();
 var bodyParser = require('body-parser');
 var kill = require('tree-kill');
 var os = require('os');
+var StompRESTMsgBroker = require('stomp-rest-msg-broker');
 
 var DEFAULT_SERVICE_NAME = "XY Node.js Service";
 
@@ -27,19 +28,9 @@ if (!protocolsConfig) {
 	process.exit(1);
 }
 
-var notificationConfig = consoleConfig["rest_notification"];
+var notificationConfig = consoleConfig["restNotification"];
 notificationConfig = (notificationConfig ? notificationConfig : null);
 var sendNotificationMsg = (notificationConfig != null);
-if (sendNotificationMsg) {
-	if (!notificationConfig["protocol"]) {
-		console.error('missing "protocol" in notification config');
-		process.exit(1);
-	}
-	if (!notificationConfig["options"]) {
-		console.error('missing "options" in notification config');
-		process.exit(1);
-	}
-}
 	
 var serviceConfig = config["service"];
 if (!serviceConfig) {
@@ -95,40 +86,14 @@ function getStatusObject(onDone) {
 	onDone(ret);
 }
 
-function sendNotification(statusObj, onDone) {
-	var protocol = notificationConfig["protocol"];
-	var options = notificationConfig["options"];
-	var httpModule = require(protocol);
-	var req = httpModule.request(options, function(res) {
-		//console.log("statusCode: ", res.statusCode);
-		//console.log("headers: ", res.headers);
-		res.setEncoding('utf8');
-		var s = "";
-		res.on('data', function(d) {
-			//process.stdout.write(d);
-			s += d;
-		});
-		res.on('end', function() {
-			try {
-				if (res.statusCode != 200) throw "http returns status code of " + res.statusCode;
-				var o = JSON.parse(s);
-				if (o.exception) throw o.exception;
-				if (typeof onDone === 'function') onDone(null, o.receipt_id);
-			} catch(e) {
-				if (typeof onDone === 'function') onDone(e, null);
-			}
-		});
+function sendNotification(statusObj) {
+	var broker = new StompRESTMsgBroker();
+	broker.send(notificationConfig, {persistence: true}, JSON.stringify(statusObj), function(err, receipt_id) {
+		if (err)
+			console.error('!!! Error sending notification: ' + err.toString());
+		else
+			console.log('notification sent successfully, receipt_id=' + receipt_id);		
 	});
-	req.on('error', function(e) {
-		if (typeof onDone === 'function') onDone(e, null);
-	});
-	var o = {"headers": {}, "message": JSON.stringify(statusObj)};
-	req.end(JSON.stringify(o));
-}
-
-function onSendNotificationDone(err, receipt_id) {
-	if (err) console.error('!!! error sending notification: ' + err.toString());
-	else console.log('notification sent successfully, receipt_id=' + receipt_id);	
 }
 
 // Ctrl+C interrupt
@@ -160,7 +125,7 @@ function runChildProcess(cmd) {
 		if (sendNotificationMsg) {
 			getStatusObject(function(statusObj) {
 				statusObj.exitStatus = {"code": code, "abnormalTermination": abnormalTermination};
-				sendNotification(statusObj, onSendNotificationDone);
+				sendNotification(statusObj);
 				if (abnormalTermination && restartWhenTerminatedAbortnormally) runChildProcess(cmd);
 			});
 		} else {
@@ -169,7 +134,7 @@ function runChildProcess(cmd) {
 	});
 	childPid = child.pid;
 	console.log('new child process pid=' + childPid + ", time=" + new Date().toString());
-	if (sendNotificationMsg) getStatusObject(function(statusObj) {sendNotification(statusObj, onSendNotificationDone);});
+	if (sendNotificationMsg) getStatusObject(function(statusObj) {sendNotification(statusObj);});
 }
 
 function killChildProcess(onDone) {
@@ -295,5 +260,5 @@ if (!httpServer && !httpsServer) {
 if (runAtStart)
 	runChildProcess(serviceConfig["cmd"]);
 else {
-	if (sendNotificationMsg) getStatusObject(function(statusObj) {sendNotification(statusObj, onSendNotificationDone);});
+	if (sendNotificationMsg) getStatusObject(function(statusObj) {sendNotification(statusObj);});
 }
