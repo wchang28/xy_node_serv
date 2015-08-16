@@ -20,21 +20,12 @@
 			"user_1": "password_1"
 			,"user_2": "password_2"
 		}
-		,"rest_notification":
+		,"restNotification":
 		{
-			"protocol": "http/https"
-			,"options":
+			"destination": "https://user:password@MyHostName:MyPort/MyPath"
+			,"additionalOptions":
 			{
-				"hostname": "@@MyHostName@@"
-				,"port": @@MyPort@@
-				,"path": "@MyPath@"
-				,"method": "POST"
-				,"auth": "user:password"
-				,"rejectUnauthorized": true/false
-				,"headers":
-				{
-					"Content-Type": "application/json"
-				}
+				"rejectUnauthorized": true/false
 			}
 		}
 	}
